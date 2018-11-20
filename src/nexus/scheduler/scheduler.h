@@ -37,7 +37,7 @@ class Scheduler : public AsyncRpcServiceBase<AsyncService> {
    * \param address IP address and port, e.g., 127.0.0.1:1234.
    * \param nthreads Number of threads that handle the RPC calls.
    */
-  Scheduler(std::string port, size_t nthreads, std::string db_root_dir);
+  Scheduler(std::string port, size_t nthreads);
   /*!
    * \brief Loads the workload configuation for backends from config file.
    * \param config_file Config file path.
@@ -70,6 +70,12 @@ class Scheduler : public AsyncRpcServiceBase<AsyncService> {
    */
   void Unregister(const grpc::ServerContext& ctx,
                   const UnregisterRequest& request, RpcReply* reply);
+                  
+  void CurRps(const grpc::ServerContext& ctx,
+                           const CurRpsRequest& request, RpcReply* reply);
+  
+  void LoadDependency(const grpc::ServerContext& ctx,
+                               const LoadDependencyRequest& request, RpcReply* reply);
   /*!
    * \brief Handles LoadModel RPC.
    *
@@ -278,6 +284,8 @@ class Scheduler : public AsyncRpcServiceBase<AsyncService> {
   std::unordered_map<std::string, ServerList> session_subscribers_;
   /*! \brief Mutex for accessing internal data */
   std::mutex mutex_;
+  
+  std::string common_gpu_;
 };
 
 } // namespace scheduler

@@ -1,22 +1,29 @@
+#include <sstream>
+
 #include "nexus/scheduler/frontend_delegate.h"
 #include "nexus/scheduler/scheduler.h"
 
 namespace nexus {
 namespace scheduler {
 
-FrontendDelegate::FrontendDelegate(uint32_t node_id,
-                                   const std::string& server_addr,
-                                   const std::string& rpc_addr,
-                                   int beacon_sec):
+FrontendDelegate::FrontendDelegate(uint32_t node_id, const std::string& ip,
+                                   const std::string& server_port,
+                                   const std::string& rpc_port,
+                                   int beacon_sec, std::string common_gpu):
     node_id_(node_id),
-    server_address_(server_addr),
-    rpc_address_(rpc_addr),
+    ip_(ip),
+    server_port_(server_port),
+    rpc_port_(rpc_port),
     beacon_sec_(beacon_sec),
     timeout_ms_(beacon_sec * 2 * 1000) {
-  auto channel = grpc::CreateChannel(rpc_addr,
+  std::stringstream rpc_addr;
+  rpc_addr << ip_ << ":" << rpc_port_;
+  auto channel = grpc::CreateChannel(rpc_addr.str(),
                                      grpc::InsecureChannelCredentials());
   stub_ = FrontendCtrl::NewStub(channel);
   last_time_ = std::chrono::system_clock::now();
+  common_gpu_ = common_gpu;
+  complexQuery_ = false;
 }
 
 std::time_t FrontendDelegate::LastAliveTime() {
@@ -52,7 +59,16 @@ bool FrontendDelegate::IsAlive() {
 void FrontendDelegate::SubscribeModel(const std::string& model_session_id) {
   subscribe_models_.insert(model_session_id);
 }
+CtrlStatus FrontendDelegate::LoadDependency(const LoadDependencyProto& request) {
+  complexQuery_ = true;
+  return query_.init(request, common_gpu_);
+}
 
+void FrontendDelegate::CurrentRps(const CurRpsProto& request){
+  if(complexQuery_) {
+    query_.addRecord(request);
+  }
+} 
 CtrlStatus FrontendDelegate::UpdateModelRoutesRpc(
     const ModelRouteUpdates& request) {
   RpcReply reply;
@@ -70,6 +86,8 @@ CtrlStatus FrontendDelegate::UpdateModelRoutesRpc(
   }
   return reply.status();
 }
-
+QuerySplit* FrontendDelegate::split() {
+  return query_.split();
+}
 } // namespace scheduler
 } // namespace nexus

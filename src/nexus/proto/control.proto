@@ -11,16 +11,20 @@ service SchedulerCtrl {
   rpc LoadModel(LoadModelRequest) returns (LoadModelReply) {}
   rpc UpdateBackendStats(BackendStatsProto) returns (RpcReply) {}
   rpc KeepAlive(KeepAliveRequest) returns (RpcReply) {}
+  rpc LoadDependency(LoadDependencyRequest) returns (RpcReply) {}
+  rpc CurRps(CurRpsRequest) returns (RpcReply) {}
 }
 
 service FrontendCtrl {
   rpc UpdateModelRoutes(ModelRouteUpdates) returns (RpcReply) {}
   rpc CheckAlive(CheckAliveRequest) returns (RpcReply) {}
+  //rpc UpdateModelLatencies(ModelLatencyUpdates) returns (RpcReply) {}
 }
 
 service BackendCtrl {
   rpc UpdateModelTable(ModelTableConfig) returns (RpcReply) {}
   rpc CheckAlive(CheckAliveRequest) returns (RpcReply) {}
+  rpc CurrentUtilization(UtilizationRequest) returns (UtilizationReply) {}
 }
 
 enum NodeType {
@@ -36,6 +40,8 @@ enum CtrlStatus {
   SERVICE_UNAVAILABLE = 1;
   // Model not found
   MODEL_NOT_FOUND = 2;
+  //Frontend not found
+  FRONTEND_NOT_FOUND = 8;
   // No available backends
   NOT_ENOUGH_BACKENDS = 3;
   // Model session not loaded
@@ -57,6 +63,8 @@ enum CtrlStatus {
 
   CTRL_FRONTEND_NODE_ID_CONFLICT = 300;
   CTRL_INVALID_LOAD_MODEL_REQUEST = 301;
+  
+  CTRL_PROFILER_UNAVALIABLE = 302;
 }
 
 message RpcReply {
@@ -91,7 +99,9 @@ message CheckAliveRequest {
 
 message BackendInfo {
   uint32 node_id = 1;
-  string server_address = 2;
+  string ip = 2;
+  string server_port = 3;
+  string rpc_port = 4;
 }
 
 message ModelRouteProto {
@@ -111,6 +121,8 @@ message LoadModelRequest {
   uint32 node_id = 1;
   ModelSession model_session = 2;
   float estimate_workload = 3;
+  bool complex_query = 4;
+  uint32 estimate_latency = 5;
   //uint32 num_gpus = 4;
 }
 
@@ -119,11 +131,20 @@ message LoadModelReply {
   ModelRouteProto model_route = 2;
 }
 
+message LoadDependencyRequest {
+  uint32 node_id = 1;
+  LoadDependencyProto dependency = 2;
+}
+
+message CurRpsRequest {
+  CurRpsProto cur_rps = 1;
+}
 message ModelInstanceConfig {
   repeated ModelSession model_session = 1;
   uint32 batch = 2;
   uint32 max_batch = 3;
   uint64 memory_usage = 4;
+  bool backup = 5;
 
   // The following fields are used for prefix batching and split batching.
   // Model segment is from start_index (inclusive) to end_index (exclusive).
@@ -132,10 +153,13 @@ message ModelInstanceConfig {
   int32 end_index = 11;
   string input_name = 12;
   repeated int32 input_shape = 13;
+
+  repeated BackendInfo backup_backend = 40;
 }
 
 message ModelTableConfig {
   repeated ModelInstanceConfig model_instance_config = 1;
+  double duty_cycle_us = 2;
 }
 
 message ModelStatsProto {
@@ -153,4 +177,14 @@ message BackendStatsProto {
 message KeepAliveRequest {
   NodeType node_type = 1;
   uint32 node_id = 2;
+}
+
+message UtilizationRequest {
+  uint32 node_id = 1;
+}
+
+message UtilizationReply {
+  uint32 node_id = 1;
+  double utilization = 2;
+  int32 valid_ms = 3;
 }

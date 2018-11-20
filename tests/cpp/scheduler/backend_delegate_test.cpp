@@ -8,7 +8,9 @@
 #include "nexus/proto/nnquery.pb.h"
 #include "nexus/scheduler/backend_delegate.h"
 
-DECLARE_string(model_db);
+//DECLARE_string(model_db);
+DECLARE_int32(beacon);
+DECLARE_int32(epoch);
 
 namespace nexus {
 namespace scheduler {
@@ -16,12 +18,13 @@ namespace scheduler {
 class BackendDelegateTest : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    ModelDatabase::Singleton().Init(FLAGS_model_db);
     gpu_device_ = "TITAN_X_(Pascal)";
     gpu_available_memory_ = 12L * 1024L * 1024L * 1024L;
+    FLAGS_beacon = 1;
+    FLAGS_epoch = 5;
     backend_.reset(new BackendDelegate(
-        1, "127.0.0.1:8001", "127.0.0.1:8002", gpu_device_,
-        gpu_available_memory_, 1, EPOCH_INTERVAL_SEC));
+        1, "127.0.0.1", "8001", "8002", gpu_device_, gpu_available_memory_,
+        FLAGS_beacon, FLAGS_epoch));
   }
 
   std::string gpu_device_;

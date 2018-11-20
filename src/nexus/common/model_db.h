@@ -51,14 +51,12 @@ class ModelProfile {
   std::unordered_map<uint32_t, ProfileEntry> forward_lats_;
   ProfileEntry preprocess_;
   ProfileEntry postprocess_;
-  const float network_latency_ = 2000; // 2000 us
+  const float network_latency_us_ = 2000; // us
 };
 
 class ModelDatabase {
  public:
   static ModelDatabase& Singleton();
-
-  void Init(const std::string& model_root);
 
   const YAML::Node* GetModelInfo(const std::string& model_id) const;
 
@@ -84,7 +82,7 @@ class ModelDatabase {
       const;
 
  private:
-  ModelDatabase() {}
+  ModelDatabase(const std::string& model_root);
 
   void LoadModelInfo(const std::string& db_file);
 

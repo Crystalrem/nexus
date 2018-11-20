@@ -1,11 +1,14 @@
 #include <boost/filesystem.hpp>
 #include <fstream>
+#include <gflags/gflags.h>
 
 #include "nexus/common/model_db.h"
 #include "nexus/common/model_def.h"
 #include "nexus/common/util.h"
 
 namespace fs = boost::filesystem;
+
+DEFINE_string(model_root, "", "Model root dicrectory");
 
 namespace nexus {
 
@@ -72,7 +75,7 @@ size_t ModelProfile::GetMemoryUsage(uint32_t batch) const {
 }
 
 uint32_t ModelProfile::GetMaxBatch(float latency_sla_ms) const {
-  float latency_budget = latency_sla_ms * 1000 - network_latency_;
+  float latency_budget = latency_sla_ms * 1000 - network_latency_us_;
   latency_budget -= GetPreprocessLatency();
   latency_budget -= GetPostprocessLatency();
   // divide by 2 is because half of time will spend in batching
@@ -98,7 +101,7 @@ std::pair<uint32_t, float> ModelProfile::GetMaxThroughput(float latency_sla_ms)
   float max_throughput = 0;
   uint32_t best_batch = 0;
   // divide by 2 is becuase half of time will spend in batching
-  float exec_budget = (latency_sla_ms * 1000 - network_latency_ -
+  float exec_budget = (latency_sla_ms * 1000 - network_latency_us_ -
                        GetPreprocessLatency() - GetPostprocessLatency()) * 0.5;
   for (uint32_t batch = 1; ; ++batch) {
     float forward_lat = GetForwardLatency(batch);
@@ -115,29 +118,9 @@ std::pair<uint32_t, float> ModelProfile::GetMaxThroughput(float latency_sla_ms)
 }
 
 ModelDatabase& ModelDatabase::Singleton() {
-  static ModelDatabase model_db_;
+  CHECK_GT(FLAGS_model_root.length(), 0) << "Missing model_root";
+  static ModelDatabase model_db_(FLAGS_model_root);
   return model_db_;
-}
-
-void ModelDatabase::Init(const std::string& db_root_dir) {
-  db_root_dir_ = db_root_dir;
-  fs::path db_dir(db_root_dir);
-  CHECK(fs::is_directory(db_dir)) << "Database root directory " <<
-      db_dir << " doesn't exist";
-  // Check model store directory exists
-  fs::path model_store_dir = db_dir / "store";
-  CHECK(fs::is_directory(model_store_dir)) << "Model store directory " <<
-      model_store_dir << " doesn't exist";
-  model_store_dir_ = model_store_dir.string();
-  // Load model DB file
-  fs::path db_file = db_dir / "db" / "model_db.yml";
-  CHECK(fs::exists(db_file)) << "Model DB file " << db_file << " doesn't exist";
-  LoadModelInfo(db_file.string());
-  // Load model profiles
-  fs::path profile_dir = db_dir / "profiles";
-  CHECK(fs::is_directory(profile_dir)) << "Model profile directory " <<
-      profile_dir << " doesn't exist";
-  LoadModelProfiles(profile_dir.string());
 }
 
 const YAML::Node* ModelDatabase::GetModelInfo(const std::string& model_id)
@@ -224,6 +207,27 @@ std::vector<std::string> ModelDatabase::GetPrefixShareModels(
     models.push_back(iter.first);
   }
   return models;
+}
+
+ModelDatabase::ModelDatabase(const std::string& db_root_dir) {
+  db_root_dir_ = db_root_dir;
+  fs::path db_dir(db_root_dir);
+  CHECK(fs::is_directory(db_dir)) << "Database root directory " <<
+      db_dir << " doesn't exist";
+  // Check model store directory exists
+  fs::path model_store_dir = db_dir / "store";
+  CHECK(fs::is_directory(model_store_dir)) << "Model store directory " <<
+      model_store_dir << " doesn't exist";
+  model_store_dir_ = model_store_dir.string();
+  // Load model DB file
+  fs::path db_file = db_dir / "db" / "model_db.yml";
+  CHECK(fs::exists(db_file)) << "Model DB file " << db_file << " doesn't exist";
+  LoadModelInfo(db_file.string());
+  // Load model profiles
+  fs::path profile_dir = db_dir / "profiles";
+  CHECK(fs::is_directory(profile_dir)) << "Model profile directory " <<
+      profile_dir << " doesn't exist";
+  LoadModelProfiles(profile_dir.string());
 }
 
 void ModelDatabase::LoadModelInfo(const std::string& db_file) {
